@@ -1,5 +1,7 @@
 <!--## Hi there 👋-->
+**Electrical and Computer Engineering** student at **Carnegie Mellon University** with a transition focus into Software Engineering. Experienced in building complex systems from the ground up ranging from **FPGA**-based game development in **SystemVerilog** to **full-stack** logic design. 
 
+I enjoy solving algorithmic challenges and building **scalable software** that bridges the gap between low-level **hardware** and high-level applications. My background in **digital design** and **embedded systems** has given me a deep understanding of **memory management**, **concurrency**, and performance optimization. Passionate about **systems** programming, **backend** development, and building software that demands a high degree of technical precision.
 
 <!--
 **Qrytics/Qrytics** is a ✨ _special_ ✨ repository because its `README.md` (this file) appears on your GitHub profile.
