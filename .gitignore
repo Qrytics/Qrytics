@@ -1,0 +1,8 @@
+headshot.png
+preview.html
+preview-dark.png
+preview-light.png
+portrait_tspan.txt
+__pycache__/
+*.pyc
+.venv/
