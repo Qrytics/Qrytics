@@ -12,22 +12,35 @@ START_Y = 12
 LINE_HEIGHT = 13
 CHAR_WIDTH = 7.4
 PANEL_W = 500
-# 2 empty character rows above and below the portrait art
-VOID_ROWS = 2
-# Right-panel last text baseline (Lines of Code row in info_panel)
+# Empty character rows around the portrait art (bottom looks larger visually, so keep it smaller)
+VOID_ROWS_TOP = 2
+VOID_ROWS_BOTTOM = 1
+# Right-panel text baselines; card bottom pad matches top pad
 TEXT_TOP_Y = 30
 TEXT_BOTTOM_Y = 470
+# Same dark margin below LOC line as above the header (~2 char / 30px)
+CARD_HEIGHT = TEXT_BOTTOM_Y + TEXT_TOP_Y  # 500
+
+
+def _line_density(line: str) -> int:
+    """Count solid portrait chars (ignore space / soft fringe)."""
+    return sum(1 for c in line if c not in " .:-`'")
 
 
 def portrait_lines() -> list[str]:
-    """Art lines only (no void pads)."""
-    return [line.rstrip() for line in PORTRAIT.read_text(encoding="utf-8").splitlines()]
+    """Art lines only; strip trailing sparse fringe so bottom void stays tight."""
+    lines = [line.rstrip() for line in PORTRAIT.read_text(encoding="utf-8").splitlines()]
+    # Bottom fringe is mostly .:-= noise; require real density to keep a row
+    while lines and _line_density(lines[-1]) < 18:
+        lines.pop()
+    while lines and _line_density(lines[0]) < 6:
+        lines.pop(0)
+    return lines
 
 
 def padded_portrait_lines(art: list[str]) -> list[str]:
-    """Art with 2-char void buffers above and below."""
-    void = [""] * VOID_ROWS
-    return void + art + void
+    """Art with void buffers — bottom is intentionally smaller than top."""
+    return ([""] * VOID_ROWS_TOP) + art + ([""] * VOID_ROWS_BOTTOM)
 
 
 def portrait_tspans(lines: list[str]) -> str:
@@ -41,28 +54,25 @@ def portrait_tspans(lines: list[str]) -> str:
 
 def portrait_transform(art: list[str]) -> str:
     """
-    Scale so art bottom aligns with right-panel text bottom, with VOID_ROWS of
-    empty space above the art and VOID_ROWS below (below text bottom).
+    Top void starts near TEXT_TOP_Y; bottom void ends at TEXT_BOTTOM_Y.
+    VOID_ROWS_BOTTOM < VOID_ROWS_TOP so the bottom gap matches the top visually.
     """
-    n_art = max(1, len(art))
     lines = padded_portrait_lines(art)
     max_w = max((len(l) for l in lines), default=1)
     raw_w = max(1, max_w) * CHAR_WIDTH
 
     y_first = START_Y
-    last_art_index = VOID_ROWS + n_art - 1
-    y_last_art = START_Y + last_art_index * LINE_HEIGHT
+    last_index = len(lines) - 1
+    y_last = START_Y + last_index * LINE_HEIGHT
 
-    # First void ~ header (y=30), last art ~ LOC line (y=470)
-    span_local = max(1.0, y_last_art - y_first)
+    span_local = max(1.0, y_last - y_first)
     sy = (TEXT_BOTTOM_Y - TEXT_TOP_Y) / span_local
     sx = sy
     if raw_w * sx > PANEL_W * 1.08:
         sx = (PANEL_W * 1.08) / raw_w
         sy = sx
 
-    # Pin art bottom to text bottom; bottom void sits just below
-    ty = TEXT_BOTTOM_Y - y_last_art * sy
+    ty = TEXT_BOTTOM_Y - y_last * sy
     tx = 12.0
     return f"translate({tx:.1f},{ty:.1f}) scale({sx:.4f},{sy:.4f})"
 
@@ -123,7 +133,7 @@ def build_svg(*, dark: bool) -> str:
     panel = info_panel(panel_fill, header_fill, section_fill, rule_fill)
 
     return f"""<?xml version='1.0' encoding='UTF-8'?>
-<svg xmlns="http://www.w3.org/2000/svg" font-family="ConsolasFallback,Consolas,monospace" width="1180" height="530" viewBox="0 0 1180 530" fontsize="15px">
+<svg xmlns="http://www.w3.org/2000/svg" font-family="ConsolasFallback,Consolas,monospace" width="1180" height="{CARD_HEIGHT}" viewBox="0 0 1180 {CARD_HEIGHT}" fontsize="15px">
 <style>
 @font-face {{
 src: local('Consolas'), local('Consolas Bold');
@@ -141,13 +151,13 @@ text, tspan {{ white-space: pre; }}
 </style>
 <defs>
   <clipPath id="card">
-    <rect width="1180" height="530" rx="15"/>
+    <rect width="1180" height="{CARD_HEIGHT}" rx="15"/>
   </clipPath>
   <clipPath id="portrait">
-    <rect x="0" y="0" width="510" height="530"/>
+    <rect x="0" y="0" width="510" height="{CARD_HEIGHT}"/>
   </clipPath>
 </defs>
-<rect width="1180px" height="530px" fill="{bg}" rx="15"/>
+<rect width="1180px" height="{CARD_HEIGHT}px" fill="{bg}" rx="15"/>
 <g clip-path="url(#card)">
   <g clip-path="url(#portrait)">
     <g transform="{transform}">
@@ -173,8 +183,10 @@ def main() -> None:
     print("Wrote dark.svg and light.svg")
     art = portrait_lines()
     print("portrait transform:", portrait_transform(art))
-    print(f"void buffers: {VOID_ROWS} rows top + {VOID_ROWS} rows bottom")
-    print(f"art bottom locked to text y={TEXT_BOTTOM_Y}")
+    print(f"void buffers: {VOID_ROWS_TOP} top + {VOID_ROWS_BOTTOM} bottom")
+    print(f"block spans text y={TEXT_TOP_Y}..{TEXT_BOTTOM_Y}")
+    print(f"card {CARD_HEIGHT}px (top/bottom edge pad={TEXT_TOP_Y}px)")
+    print(f"art lines after fringe trim: {len(art)}")
 
 
 if __name__ == "__main__":
