@@ -6,14 +6,31 @@ from pathlib import Path
 ROOT = Path(__file__).parent
 PORTRAIT = ROOT / "portrait.txt"
 
-# Match Karthik's ASCII placement (scaled in the SVG)
-START_X = -10
-START_Y = 0
-LINE_HEIGHT = 9
+START_X = 0
+START_Y = 12
+# Must be >= ascii fontsize or stacked lines squash the face
+LINE_HEIGHT = 13
+CHAR_WIDTH = 7.4
+PANEL_W = 500
+# 2 empty character rows above and below the portrait art
+VOID_ROWS = 2
+# Right-panel last text baseline (Lines of Code row in info_panel)
+TEXT_TOP_Y = 30
+TEXT_BOTTOM_Y = 470
 
 
-def portrait_tspans() -> str:
-    lines = [line.rstrip() for line in PORTRAIT.read_text(encoding="utf-8").splitlines()]
+def portrait_lines() -> list[str]:
+    """Art lines only (no void pads)."""
+    return [line.rstrip() for line in PORTRAIT.read_text(encoding="utf-8").splitlines()]
+
+
+def padded_portrait_lines(art: list[str]) -> list[str]:
+    """Art with 2-char void buffers above and below."""
+    void = [""] * VOID_ROWS
+    return void + art + void
+
+
+def portrait_tspans(lines: list[str]) -> str:
     y = START_Y
     parts: list[str] = []
     for line in lines:
@@ -22,32 +39,58 @@ def portrait_tspans() -> str:
     return "\n".join(parts)
 
 
+def portrait_transform(art: list[str]) -> str:
+    """
+    Scale so art bottom aligns with right-panel text bottom, with VOID_ROWS of
+    empty space above the art and VOID_ROWS below (below text bottom).
+    """
+    n_art = max(1, len(art))
+    lines = padded_portrait_lines(art)
+    max_w = max((len(l) for l in lines), default=1)
+    raw_w = max(1, max_w) * CHAR_WIDTH
+
+    y_first = START_Y
+    last_art_index = VOID_ROWS + n_art - 1
+    y_last_art = START_Y + last_art_index * LINE_HEIGHT
+
+    # First void ~ header (y=30), last art ~ LOC line (y=470)
+    span_local = max(1.0, y_last_art - y_first)
+    sy = (TEXT_BOTTOM_Y - TEXT_TOP_Y) / span_local
+    sx = sy
+    if raw_w * sx > PANEL_W * 1.08:
+        sx = (PANEL_W * 1.08) / raw_w
+        sy = sx
+
+    # Pin art bottom to text bottom; bottom void sits just below
+    ty = TEXT_BOTTOM_Y - y_last_art * sy
+    tx = 12.0
+    return f"translate({tx:.1f},{ty:.1f}) scale({sx:.4f},{sy:.4f})"
+
+
 def info_panel(panel_fill: str, header_fill: str, section_fill: str, rule_fill: str) -> str:
-    # Field layout mirrors Karthik; stats IDs must match update.py
     return f"""<text x="500" y="30" fill="{panel_fill}">
-<tspan x="520" y="30" fill="{header_fill}" fontsize="17px">Qrytics@cmu-ece</tspan><tspan fill="{rule_fill}"> -----------------------------------------------</tspan>
+<tspan x="520" y="30" fill="{header_fill}" fontsize="17px">Qrytics@IBM</tspan><tspan fill="{rule_fill}"> ---------------------------------------------------</tspan>
 <tspan x="520" y="50" class="cc">. </tspan><tspan class="key">Subject</tspan>:<tspan class="cc"> ....................... </tspan><tspan class="value">Mario A. Belmonte</tspan>
-<tspan x="520" y="70" class="cc">. </tspan><tspan class="key">Role</tspan>:<tspan class="cc"> ...... </tspan><tspan class="value">ECE Student | Full-Stack Developer</tspan>
-<tspan x="520" y="90" class="cc">. </tspan><tspan class="key">Origin</tspan>:<tspan class="cc"> ........................ </tspan><tspan class="value">Pittsburgh, PA</tspan>
-<tspan x="520" y="110" class="cc">. </tspan><tspan class="key">Status</tspan>:<tspan class="cc"> ........... </tspan><tspan class="value">Building · Learning · Shipping</tspan>
-<tspan x="520" y="130" class="cc">. </tspan><tspan class="key">ToolChain</tspan>:<tspan class="cc"> ............. </tspan><tspan class="value">VS Code, Git, Docker, Linux</tspan>
+<tspan x="520" y="70" class="cc">. </tspan><tspan class="key">Role</tspan>:<tspan class="cc"> ....................... </tspan><tspan class="value">Cloud Consultant @ IBM</tspan>
+<tspan x="520" y="90" class="cc">. </tspan><tspan class="key">Origin</tspan>:<tspan class="cc"> ........................... </tspan><tspan class="value">Mcallen, TX</tspan>
+<tspan x="520" y="110" class="cc">. </tspan><tspan class="key">Status</tspan>:<tspan class="cc"> ....................... </tspan><tspan class="value">Building · Learning</tspan>
+<tspan x="520" y="130" class="cc">. </tspan><tspan class="key">ToolChain</tspan>:<tspan class="cc"> ................ </tspan><tspan class="value">VS Code, Git, Docker, Linux</tspan>
 <tspan x="520" y="150" class="cc">. </tspan>
-<tspan x="520" y="170" class="cc">. </tspan><tspan class="key">Stack</tspan>.<tspan class="key">Core</tspan>:<tspan class="cc"> ..... </tspan><tspan class="value">TypeScript, Python, C/C++, SystemVerilog</tspan>
-<tspan x="520" y="190" class="cc">. </tspan><tspan class="key">Stack</tspan>.<tspan class="key">Frontend</tspan>:<tspan class="cc"> ......... </tspan><tspan class="value">React, Next.js, HTML/CSS, d3</tspan>
+<tspan x="520" y="170" class="cc">. </tspan><tspan class="key">Stack</tspan>.<tspan class="key">Core</tspan>:<tspan class="cc"> ............ </tspan><tspan class="value">TypeScript, Python, C/C++, SystemVerilog</tspan>
+<tspan x="520" y="190" class="cc">. </tspan><tspan class="key">Stack</tspan>.<tspan class="key">Frontend</tspan>:<tspan class="cc"> ........ </tspan><tspan class="value">React, Next.js, HTML/CSS, d3</tspan>
 <tspan x="520" y="210" class="cc">. </tspan><tspan class="key">Stack</tspan>.<tspan class="key">Backend</tspan>:<tspan class="cc"> ......... </tspan><tspan class="value">FastAPI, Docker, PostgreSQL, AWS</tspan>
 <tspan x="520" y="230" class="cc">. </tspan><tspan class="key">Stack</tspan>.<tspan class="key">Hardware</tspan>:<tspan class="cc"> ........ </tspan><tspan class="value">ESP32, FPGA, Quartus, MQTT</tspan>
 <tspan x="520" y="250" class="cc">. </tspan><tspan class="key">Stack</tspan>.<tspan class="key">ML</tspan>:<tspan class="cc"> .............. </tspan><tspan class="value">PyTorch, OpenCV, LiteLLM</tspan>
 <tspan x="520" y="270" class="cc">. </tspan>
 <tspan x="520" y="290" fill="{section_fill}">- Contact</tspan><tspan fill="{rule_fill}"> ---------------------------------------------------------</tspan>
-<tspan x="520" y="310" class="cc">. </tspan><tspan class="key">Link</tspan>.<tspan class="key">Mail</tspan>:<tspan class="cc"> ................ </tspan><tspan class="value">mario4.belmonte@gmail.com</tspan>
-<tspan x="520" y="330" class="cc">. </tspan><tspan class="key">Link</tspan>.<tspan class="key">Portfolio</tspan>:<tspan class="cc"> ........... </tspan><tspan class="value">mario-belmonte.com</tspan>
-<tspan x="520" y="350" class="cc">. </tspan><tspan class="key">Link</tspan>.<tspan class="key">LinkedIn</tspan>:<tspan class="cc"> ............ </tspan><tspan class="value">mario-belmonte</tspan>
-<tspan x="520" y="370" class="cc">. </tspan><tspan class="key">Link</tspan>.<tspan class="key">Github</tspan>:<tspan class="cc"> .............. </tspan><tspan class="value">Qrytics</tspan>
-<tspan x="520" y="390" class="cc">. </tspan><tspan class="key">Link</tspan>.<tspan class="key">Resume</tspan>:<tspan class="cc"> .............. </tspan><tspan class="value">mario-belmonte.com/resume</tspan>
-<tspan x="520" y="420" fill="{section_fill}">- GitHub Stats</tspan><tspan fill="{rule_fill}"> ----------------------------------------------------</tspan>
-<tspan x="520" y="440" class="cc">. </tspan><tspan class="key">Repos</tspan>:<tspan class="cc" id="repo_data_dots"> .... </tspan><tspan class="value" id="repo_data">0</tspan> {{<tspan class="key">Contributed</tspan>: <tspan class="value" id="contrib_data">0</tspan>   }}  | <tspan class="key">Stars</tspan>:<tspan class="cc" id="star_data_dots"> ............ </tspan><tspan class="value" id="star_data">0</tspan>
-<tspan x="520" y="460" class="cc">. </tspan><tspan class="key">Commits</tspan>:<tspan class="cc" id="commit_data_dots"> .................... </tspan><tspan class="value" id="commit_data">0</tspan>       | <tspan class="key">Followers</tspan>:<tspan class="cc" id="follower_data_dots"> ........ </tspan><tspan class="value" id="follower_data">0</tspan>
-<tspan x="520" y="480" class="cc">. </tspan><tspan class="key">Lines of Code on GitHub</tspan>:<tspan class="cc" id="loc_data_dots">. </tspan><tspan class="value" id="loc_data">0</tspan> ( <tspan class="addColor" id="loc_add">0</tspan><tspan class="addColor">++</tspan>, <tspan id="loc_del_dots">. </tspan><tspan class="delColor" id="loc_del">0</tspan><tspan class="delColor">--</tspan> )
+<tspan x="520" y="310" class="cc">. </tspan><tspan class="key">Link</tspan>.<tspan class="key">Mail</tspan>:<tspan class="cc"> ............. </tspan><tspan class="value">mario4.belmonte@gmail.com</tspan>
+<tspan x="520" y="330" class="cc">. </tspan><tspan class="key">Link</tspan>.<tspan class="key">Portfolio</tspan>:<tspan class="cc"> ........ </tspan><tspan class="value">mario-belmonte.com</tspan>
+<tspan x="520" y="350" class="cc">. </tspan><tspan class="key">Link</tspan>.<tspan class="key">LinkedIn</tspan>:<tspan class="cc"> ......... </tspan><tspan class="value">linkedin.com/in/mario-belmonte/</tspan>
+<tspan x="520" y="370" class="cc">. </tspan><tspan class="key">Link</tspan>.<tspan class="key">Resume</tspan>:<tspan class="cc"> ........... </tspan><tspan class="value">mario-belmonte.com/resume</tspan>
+<tspan x="520" y="410" fill="{section_fill}">- GitHub Stats</tspan><tspan fill="{rule_fill}"> ----------------------------------------------------</tspan>
+<tspan x="520" y="430" class="cc">. </tspan><tspan class="key">Repos</tspan>:<tspan class="cc" id="repo_data_dots"> .... </tspan><tspan class="value" id="repo_data">0</tspan> {{<tspan class="key">Contributed</tspan>: <tspan class="value" id="contrib_data">0</tspan>   }}  | <tspan class="key">Stars</tspan>:<tspan class="cc" id="star_data_dots"> ............ </tspan><tspan class="value" id="star_data">0</tspan>
+<tspan x="520" y="450" class="cc">. </tspan><tspan class="key">Commits</tspan>:<tspan class="cc" id="commit_data_dots"> .................... </tspan><tspan class="value" id="commit_data">0</tspan>       | <tspan class="key">Followers</tspan>:<tspan class="cc" id="follower_data_dots"> ........ </tspan><tspan class="value" id="follower_data">0</tspan>
+<tspan x="520" y="470" class="cc">. </tspan><tspan class="key">Lines of Code on GitHub</tspan>:<tspan class="cc" id="loc_data_dots">. </tspan><tspan class="value" id="loc_data">0</tspan> ( <tspan class="addColor" id="loc_add">0</tspan><tspan class="addColor">++</tspan>, <tspan id="loc_del_dots">. </tspan><tspan class="delColor" id="loc_del">0</tspan><tspan class="delColor">--</tspan> )
 </text>"""
 
 
@@ -73,7 +116,10 @@ def build_svg(*, dark: bool) -> str:
         panel_fill = "#24292f"
         rule_fill = "#8c959f"
 
-    portrait = portrait_tspans()
+    art = portrait_lines()
+    lines = padded_portrait_lines(art)
+    portrait = portrait_tspans(lines)
+    transform = portrait_transform(art)
     panel = info_panel(panel_fill, header_fill, section_fill, rule_fill)
 
     return f"""<?xml version='1.0' encoding='UTF-8'?>
@@ -104,8 +150,8 @@ text, tspan {{ white-space: pre; }}
 <rect width="1180px" height="530px" fill="{bg}" rx="15"/>
 <g clip-path="url(#card)">
   <g clip-path="url(#portrait)">
-    <g transform="translate(18,12) scale(0.40,0.82)">
-      <text x="0" y="0" fill="{ascii_fill}" class="ascii">
+    <g transform="{transform}">
+      <text x="0" y="0" fill="{ascii_fill}" class="ascii" fontsize="12px">
 {portrait}
       </text>
     </g>
@@ -125,6 +171,10 @@ def main() -> None:
     (ROOT / "dark.svg").write_text(dark, encoding="utf-8")
     (ROOT / "light.svg").write_text(light, encoding="utf-8")
     print("Wrote dark.svg and light.svg")
+    art = portrait_lines()
+    print("portrait transform:", portrait_transform(art))
+    print(f"void buffers: {VOID_ROWS} rows top + {VOID_ROWS} rows bottom")
+    print(f"art bottom locked to text y={TEXT_BOTTOM_Y}")
 
 
 if __name__ == "__main__":

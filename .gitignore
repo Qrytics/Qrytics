@@ -6,3 +6,4 @@ portrait_tspan.txt
 __pycache__/
 *.pyc
 .venv/
+verify-dark.png
