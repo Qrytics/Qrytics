@@ -91,7 +91,6 @@ def info_panel(panel_fill: str, header_fill: str, section_fill: str, rule_fill: 
 <tspan x="520" y="210" class="cc">. </tspan><tspan class="key">Stack</tspan>.<tspan class="key">Backend</tspan>:<tspan class="cc"> ......... </tspan><tspan class="value">FastAPI, Docker, PostgreSQL, AWS</tspan>
 <tspan x="520" y="230" class="cc">. </tspan><tspan class="key">Stack</tspan>.<tspan class="key">Hardware</tspan>:<tspan class="cc"> ........ </tspan><tspan class="value">ESP32, FPGA, Quartus, MQTT</tspan>
 <tspan x="520" y="250" class="cc">. </tspan><tspan class="key">Stack</tspan>.<tspan class="key">ML</tspan>:<tspan class="cc"> .............. </tspan><tspan class="value">PyTorch, OpenCV, LiteLLM</tspan>
-<tspan x="520" y="270" class="cc">. </tspan>
 <tspan x="520" y="290" fill="{section_fill}">- Contact</tspan><tspan fill="{rule_fill}"> ---------------------------------------------------------</tspan>
 <tspan x="520" y="310" class="cc">. </tspan><tspan class="key">Link</tspan>.<tspan class="key">Mail</tspan>:<tspan class="cc"> ............. </tspan><tspan class="value">mario4.belmonte@gmail.com</tspan>
 <tspan x="520" y="330" class="cc">. </tspan><tspan class="key">Link</tspan>.<tspan class="key">Portfolio</tspan>:<tspan class="cc"> ........ </tspan><tspan class="value">mario-belmonte.com</tspan>

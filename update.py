@@ -11,12 +11,42 @@ HEADERS = {'authorization': 'token '+ os.environ['ACCESS_TOKEN']}
 USER_NAME = os.environ['USER_NAME']
 QUERY_COUNT = {'user_getter': 0, 'follower_getter': 0, 'graph_repos_stars': 0, 'recursive_loc': 0, 'graph_commits': 0, 'loc_query': 0}
 
+# GitHub GraphQL occasionally returns 502/503 under load during LOC walks
+RETRYABLE_STATUS = {502, 503, 504}
+MAX_RETRIES = 6
+BASE_SLEEP_SEC = 2.0
+
+
+def graphql_request(query, variables, *, retryable=True):
+    """
+    POST to GitHub GraphQL with retries on transient gateway errors.
+    """
+    last = None
+    attempts = MAX_RETRIES if retryable else 1
+    for attempt in range(attempts):
+        last = requests.post(
+            'https://api.github.com/graphql',
+            json={'query': query, 'variables': variables},
+            headers=HEADERS,
+            timeout=60,
+        )
+        if last.status_code == 200:
+            # GraphQL can 200 with errors; still return for callers to inspect
+            return last
+        if last.status_code in RETRYABLE_STATUS and attempt < attempts - 1:
+            sleep_for = BASE_SLEEP_SEC * (2 ** attempt)
+            print(f'   transient {last.status_code}; retry {attempt + 1}/{attempts - 1} in {sleep_for:.1f}s')
+            time.sleep(sleep_for)
+            continue
+        return last
+    return last
+
 
 def simple_request(func_name, query, variables):
     """
     Returns a request, or raises an Exception if the response does not succeed.
     """
-    request = requests.post('https://api.github.com/graphql', json={'query': query, 'variables':variables}, headers=HEADERS)
+    request = graphql_request(query, variables)
     if request.status_code == 200:
         return request
     raise Exception(func_name, ' has failed with a', request.status_code, request.text, QUERY_COUNT)
@@ -116,11 +146,19 @@ def recursive_loc(owner, repo_name, data, cache_comment, addition_total=0, delet
         }
     }'''
     variables = {'repo_name': repo_name, 'owner': owner, 'cursor': cursor}
-    request = requests.post('https://api.github.com/graphql', json={'query': query, 'variables':variables}, headers=HEADERS) # I cannot use simple_request(), because I want to save the file before raising Exception
+    request = graphql_request(query, variables)  # retries 502/503; save cache before hard fail
     if request.status_code == 200:
-        if request.json()['data']['repository']['defaultBranchRef'] != None: # Only count commits if repo isn't empty
-            return loc_counter_one_repo(owner, repo_name, data, cache_comment, request.json()['data']['repository']['defaultBranchRef']['target']['history'], addition_total, deletion_total, my_commits)
-        else: return 0
+        payload = request.json()
+        repo = (payload.get('data') or {}).get('repository')
+        if repo is None:
+            return addition_total, deletion_total, my_commits
+        if repo.get('defaultBranchRef') is not None:
+            history = repo['defaultBranchRef']['target']['history']
+            return loc_counter_one_repo(
+                owner, repo_name, data, cache_comment, history,
+                addition_total, deletion_total, my_commits,
+            )
+        return addition_total, deletion_total, my_commits
     force_close_file(data, cache_comment) # saves what is currently in the file before this program crashes
     if request.status_code == 403:
         raise Exception('Too many requests in a short amount of time!\nYou\'ve hit the non-documented anti-abuse limit!')
@@ -219,8 +257,19 @@ def cache_builder(edges, comment_size, force_cache, loc_add=0, loc_del=0):
                 if int(commit_count) != edges[index]['node']['defaultBranchRef']['target']['history']['totalCount']:
                     # if commit count has changed, update loc for that repo
                     owner, repo_name = edges[index]['node']['nameWithOwner'].split('/')
-                    loc = recursive_loc(owner, repo_name, data, cache_comment)
-                    data[index] = repo_hash + ' ' + str(edges[index]['node']['defaultBranchRef']['target']['history']['totalCount']) + ' ' + str(loc[2]) + ' ' + str(loc[0]) + ' ' + str(loc[1]) + '\n'
+                    try:
+                        loc = recursive_loc(owner, repo_name, data, cache_comment)
+                        data[index] = repo_hash + ' ' + str(edges[index]['node']['defaultBranchRef']['target']['history']['totalCount']) + ' ' + str(loc[2]) + ' ' + str(loc[0]) + ' ' + str(loc[1]) + '\n'
+                    except Exception as exc:
+                        # Don't fail the whole Actions job on one flaky repo / 502 after retries
+                        print(f'   skip LOC for {owner}/{repo_name}: {exc}')
+                        data[index] = repo_hash + ' ' + str(edges[index]['node']['defaultBranchRef']['target']['history']['totalCount']) + ' 0 0 0\n'
+                    # Pace requests — first cold cache walk is heavy
+                    time.sleep(0.35)
+                    # Persist progress so a later crash keeps work done so far
+                    with open(filename, 'w') as f:
+                        f.writelines(cache_comment)
+                        f.writelines(data)
             except TypeError: # If the repo is empty
                 data[index] = repo_hash + ' 0 0 0 0\n'
     with open(filename, 'w') as f:
